@@ -1,0 +1,9 @@
+[programs.devnet]
+zakachain = "3EJSTPJYM3BaNBvL7haWnhXoNh5GvmsQfwL1QQ2am3GJ"
+
+[provider]
+cluster = "devnet"
+wallet = "~/.config/solana/id.json"
+
+[scripts]
+test = "mocha -t 1000000 tests/" 
