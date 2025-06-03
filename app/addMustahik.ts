@@ -38,18 +38,50 @@ async function main() {
         const mustahikWallet = Keypair.generate();
         console.log("Mustahik Wallet:", mustahikWallet.publicKey.toBase58());
 
+        // Derive the PDA for the mustahik account
+        const [mustahikAccountPda] = await PublicKey.findProgramAddress(
+            [Buffer.from("mustahik"), mustahikWallet.publicKey.toBuffer()],
+            programId
+        );
+        console.log("Mustahik Account PDA:", mustahikAccountPda.toBase58());
+
         // Add mustahik
         console.log("\nAdding mustahik...");
         const tx = await program.methods
-            .addMustahik(mustahikWallet.publicKey)
+            .addMustahik("MUSTAHIK-001", "Mustahik 1")
             .accounts({
                 state: statePda,
                 amil: wallet.publicKey,
+                mustahik: mustahikWallet.publicKey,
+                mustahikAccount: mustahikAccountPda,
+                systemProgram: anchor.web3.SystemProgram.programId,
             })
             .rpc();
         
         console.log("Transaction signature:", tx);
         console.log("Mustahik added successfully!");
+
+        // Check mustahik status using view_mustahik_status
+        console.log("\nChecking mustahik status...");
+        const mustahikStatus = await program.methods
+            .viewMustahikStatus()
+            .accounts({
+                mustahik: mustahikWallet.publicKey,
+                mustahikAccount: mustahikAccountPda,
+            })
+            .view();
+
+        console.log("Mustahik Status:", mustahikStatus);
+
+        // Fetch the mustahik account to display the data
+        const mustahikAccount = await program.account.mustahikAccount.fetch(mustahikAccountPda);
+        console.log("Mustahik Status:", {
+            address: mustahikAccount.address.toBase58(),
+            name: mustahikAccount.name,
+            uniqueId: mustahikAccount.uniqueId,
+            isActive: mustahikAccount.isActive,
+            createdAt: new Date(mustahikAccount.createdAt.toNumber() * 1000).toISOString(),
+        });
 
     } catch (error) {
         console.error("Error:", error);

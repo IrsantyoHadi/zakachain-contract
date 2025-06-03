@@ -132,7 +132,7 @@ describe("zakachain", () => {
     const zakatAmount = new anchor.BN(1000000); // 1 token
 
     await program.methods
-      .receiveZakat(zakatAmount)
+      .collectZakat(zakatAmount)
       .accounts({
         state: stateAccount,
         payer: payer.publicKey,
@@ -162,18 +162,35 @@ describe("zakachain", () => {
   });
 
   it("Adds a mustahik", async () => {
+    const uniqueId = "MUSTAHIK-001";
+    const name = "Test Mustahik";
+
     await program.methods
-      .addMustahik(mustahik.publicKey)
+      .addMustahik(uniqueId, name)
       .accounts({
         state: stateAccount,
         amil: amil.publicKey,
+        mustahik: mustahik.publicKey,
+        mustahikAccount: await PublicKey.findProgramAddressSync(
+          [Buffer.from("mustahik"), mustahik.publicKey.toBuffer()],
+          program.programId
+        )[0],
+        systemProgram: anchor.web3.SystemProgram.programId,
       })
       .signers([amil])
       .rpc();
 
-    // Verify state
-    const state = await program.account.zakaChainState.fetch(stateAccount);
-    assert.ok(state.mustahiks.some((addr: PublicKey) => addr.equals(mustahik.publicKey)));
+    // Verify mustahik account
+    const mustahikAccount = await program.account.mustahikAccount.fetch(
+      await PublicKey.findProgramAddressSync(
+        [Buffer.from("mustahik"), mustahik.publicKey.toBuffer()],
+        program.programId
+      )[0]
+    );
+    assert.ok(mustahikAccount.address.equals(mustahik.publicKey));
+    assert.equal(mustahikAccount.uniqueId, uniqueId);
+    assert.equal(mustahikAccount.name, name);
+    assert.ok(mustahikAccount.isActive);
   });
 
   it("Distributes Zakat to a mustahik", async () => {
@@ -185,6 +202,10 @@ describe("zakachain", () => {
         state: stateAccount,
         amil: amil.publicKey,
         mustahik: mustahik.publicKey,
+        mustahikAccount: await PublicKey.findProgramAddressSync(
+          [Buffer.from("mustahik"), mustahik.publicKey.toBuffer()],
+          program.programId
+        )[0],
         programTokenAccount: programTokenAccount,
         mustahikTokenAccount: mustahikTokenAccount,
         tokenProgram: TOKEN_PROGRAM_ID,
@@ -202,25 +223,148 @@ describe("zakachain", () => {
     assert.equal(state.totalZakatDistributed.toString(), distributionAmount.toString());
   });
 
-  it("Withdraws for manual distribution", async () => {
+  it("Withdraws zakat manually as amil", async () => {
     const withdrawalAmount = new anchor.BN(100000); // 0.1 token
-    const description = "Emergency relief distribution";
+    const uniqueId = "WITHDRAWAL-001";
 
     await program.methods
-      .withdrawForManualDistribution(withdrawalAmount, description)
+      .withdrawZakatManual(withdrawalAmount, uniqueId)
       .accounts({
         state: stateAccount,
         amil: amil.publicKey,
         programTokenAccount: programTokenAccount,
-        amilOperationalAccount: amilOperationalTokenAccount,
+        recipientTokenAccount: amilTokenAccount,
         tokenProgram: TOKEN_PROGRAM_ID,
+        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
       })
       .signers([amil])
       .rpc();
 
     // Verify balances
-    const amilOperationalBalance = await getAccount(provider.connection, amilOperationalTokenAccount);
-    assert.equal(amilOperationalBalance.amount.toString(), withdrawalAmount.toString());
+    const amilTokenBalance = await getAccount(provider.connection, amilTokenAccount);
+    assert.equal(amilTokenBalance.amount.toString(), withdrawalAmount.toString());
+
+    // Verify state
+    const state = await program.account.zakaChainState.fetch(stateAccount);
+    assert.equal(state.totalZakatDistributed.toString(), withdrawalAmount.toString());
+    assert.equal(state.withdrawalCount, 1);
+    assert.equal(state.manualWithdrawalCount, 1);
+  });
+
+  it("Fails to withdraw zakat manually with unauthorized account", async () => {
+    const unauthorizedAccount = Keypair.generate();
+    const withdrawalAmount = new anchor.BN(100000);
+    const uniqueId = "WITHDRAWAL-002";
+
+    try {
+      await program.methods
+        .withdrawZakatManual(withdrawalAmount, uniqueId)
+        .accounts({
+          state: stateAccount,
+          amil: unauthorizedAccount.publicKey,
+          programTokenAccount: programTokenAccount,
+          recipientTokenAccount: amilTokenAccount,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+        })
+        .signers([unauthorizedAccount])
+        .rpc();
+      assert.fail("Expected error for unauthorized withdrawal");
+    } catch (error) {
+      assert.include(error.message, "Unauthorized");
+    }
+  });
+
+  it("Fails to withdraw zakat manually to non-amil account", async () => {
+    const withdrawalAmount = new anchor.BN(100000);
+    const uniqueId = "WITHDRAWAL-003";
+
+    try {
+      await program.methods
+        .withdrawZakatManual(withdrawalAmount, uniqueId)
+        .accounts({
+          state: stateAccount,
+          amil: amil.publicKey,
+          programTokenAccount: programTokenAccount,
+          recipientTokenAccount: mustahikTokenAccount, // Using mustahik's account instead of amil's
+          tokenProgram: TOKEN_PROGRAM_ID,
+          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+        })
+        .signers([amil])
+        .rpc();
+      assert.fail("Expected error for invalid recipient");
+    } catch (error) {
+      assert.include(error.message, "Invalid recipient");
+    }
+  });
+
+  it("Fails to withdraw zakat manually with insufficient funds", async () => {
+    const withdrawalAmount = new anchor.BN(1000000000); // 1000 tokens (more than available)
+    const uniqueId = "WITHDRAWAL-004";
+
+    try {
+      await program.methods
+        .withdrawZakatManual(withdrawalAmount, uniqueId)
+        .accounts({
+          state: stateAccount,
+          amil: amil.publicKey,
+          programTokenAccount: programTokenAccount,
+          recipientTokenAccount: amilTokenAccount,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+        })
+        .signers([amil])
+        .rpc();
+      assert.fail("Expected error for insufficient funds");
+    } catch (error) {
+      assert.include(error.message, "Insufficient funds");
+    }
+  });
+
+  it("Fails to withdraw zakat manually with invalid amount", async () => {
+    const withdrawalAmount = new anchor.BN(0); // Invalid amount
+    const uniqueId = "WITHDRAWAL-005";
+
+    try {
+      await program.methods
+        .withdrawZakatManual(withdrawalAmount, uniqueId)
+        .accounts({
+          state: stateAccount,
+          amil: amil.publicKey,
+          programTokenAccount: programTokenAccount,
+          recipientTokenAccount: amilTokenAccount,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+        })
+        .signers([amil])
+        .rpc();
+      assert.fail("Expected error for invalid amount");
+    } catch (error) {
+      assert.include(error.message, "Invalid amount");
+    }
+  });
+
+  it("Fails to withdraw zakat manually with too long unique ID", async () => {
+    const withdrawalAmount = new anchor.BN(100000);
+    const uniqueId = "WITHDRAWAL-006".repeat(20); // Too long unique ID
+
+    try {
+      await program.methods
+        .withdrawZakatManual(withdrawalAmount, uniqueId)
+        .accounts({
+          state: stateAccount,
+          amil: amil.publicKey,
+          programTokenAccount: programTokenAccount,
+          recipientTokenAccount: amilTokenAccount,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+        })
+        .signers([amil])
+        .rpc();
+      assert.fail("Expected error for too long unique ID");
+    } catch (error) {
+      assert.include(error.message, "Unique ID is too long");
+    }
   });
 
   it("Fails to initialize with invalid fee percentage", async () => {
@@ -244,13 +388,21 @@ describe("zakachain", () => {
 
   it("Fails to add mustahik with unauthorized account", async () => {
     const unauthorizedAccount = Keypair.generate();
+    const uniqueId = "MUSTAHIK-002";
+    const name = "Test Mustahik 2";
 
     try {
       await program.methods
-        .addMustahik(mustahik.publicKey)
+        .addMustahik(uniqueId, name)
         .accounts({
           state: stateAccount,
           amil: unauthorizedAccount.publicKey,
+          mustahik: mustahik.publicKey,
+          mustahikAccount: await PublicKey.findProgramAddressSync(
+            [Buffer.from("mustahik"), mustahik.publicKey.toBuffer()],
+            program.programId
+          )[0],
+          systemProgram: anchor.web3.SystemProgram.programId,
         })
         .signers([unauthorizedAccount])
         .rpc();
