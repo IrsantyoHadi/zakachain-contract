@@ -20,6 +20,7 @@ ZakaChain is a Solana-based smart contract for managing Zakat (Islamic almsgivin
 - Amil can add Mustahiks (eligible recipients)
 - Maximum of 100 Mustahiks can be registered
 - Each Mustahik must have a valid Solana wallet address
+- View mustahik status using the `view_mustahik_status` function
 
 ### 4. Zakat Distribution
 - Automated distribution to registered Mustahiks
@@ -79,7 +80,8 @@ pub fn receive_zakat(
 ```rust
 pub fn add_mustahik(
     ctx: Context<AddMustahik>,
-    mustahik_address: Pubkey,
+    unique_id: String,
+    name: String,
 ) -> Result<()>
 ```
 - Registers a new Mustahik
@@ -109,6 +111,16 @@ pub fn withdraw_zakat_manual(
 - Only amil can receive withdrawn funds
 - Requires unique ID for tracking
 - Emits withdrawal event
+
+### 6. View Mustahik Status
+```rust
+pub fn view_mustahik_status(
+    ctx: Context<GetMustahikStatus>,
+) -> Result<MustahikStatusView>
+```
+- Returns the status of a mustahik
+- Can be called by anyone
+- Returns a `MustahikStatusView` struct with mustahik details
 
 ## Events
 
@@ -229,6 +241,19 @@ await program.methods
         associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
     })
     .rpc();
+```
+
+### View Mustahik Status
+```typescript
+const mustahikStatus = await program.methods
+    .viewMustahikStatus()
+    .accounts({
+        mustahik: mustahikWallet.publicKey,
+        mustahikAccount: mustahikAccountPda,
+    })
+    .view();
+
+console.log("Mustahik Status:", mustahikStatus);
 ```
 
 ## Future Improvements

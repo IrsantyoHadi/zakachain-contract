@@ -250,6 +250,18 @@ pub mod zakachain {
 
         Ok(())
     }
+
+    pub fn view_mustahik_status(ctx: Context<GetMustahikStatus>) -> Result<MustahikStatusView> {
+        let mustahik_account = &ctx.accounts.mustahik_account;
+        Ok(MustahikStatusView {
+            address: mustahik_account.address,
+            unique_id: mustahik_account.unique_id.clone(),
+            name: mustahik_account.name.clone(),
+            is_active: mustahik_account.is_active,
+            created_at: mustahik_account.created_at,
+            updated_at: mustahik_account.updated_at,
+        })
+    }
 }
 
 #[derive(Accounts)]
@@ -467,17 +479,6 @@ pub struct AmilFeesWithdrawn {
 }
 
 #[event]
-pub struct MustahikStatus {
-    pub mustahik: Pubkey,
-    pub mustahik_account: Pubkey,
-    pub unique_id: String,
-    pub name: String,
-    pub is_active: bool,
-    pub created_at: i64,
-    pub updated_at: i64,
-}
-
-#[event]
 pub struct ZakatWithdrawn {
     pub amount: u64,
     pub unique_id: String,
@@ -509,18 +510,12 @@ pub enum ZakaChainError {
     UniqueIdTooLong,
 }
 
-pub fn get_mustahik_status(
-    ctx: Context<GetMustahikStatus>,
-) -> Result<()> {
-    let mustahik_account = &ctx.accounts.mustahik_account;
-    emit!(MustahikStatus {
-        mustahik: mustahik_account.address,
-        mustahik_account: mustahik_account.key(),
-        unique_id: mustahik_account.unique_id.clone(),
-        name: mustahik_account.name.clone(),
-        is_active: mustahik_account.is_active,
-        created_at: mustahik_account.created_at,
-        updated_at: mustahik_account.updated_at,
-    });
-    Ok(())
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]
+pub struct MustahikStatusView {
+    pub address: Pubkey,
+    pub unique_id: String,
+    pub name: String,
+    pub is_active: bool,
+    pub created_at: i64,
+    pub updated_at: i64,
 } 
