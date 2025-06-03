@@ -29,11 +29,10 @@ ZakaChain is a Solana-based smart contract for managing Zakat (Islamic almsgivin
 ### 5. Manual Withdrawal System
 - Amil can withdraw funds for manual distribution
 - Security features:
-  - Minimum withdrawal: 100 USDC
-  - Maximum withdrawal: 100,000 USDC
-  - 24-hour cooldown between withdrawals
+  - Only amil can receive withdrawn funds
+  - Unique ID required for each withdrawal
   - Withdrawal tracking and counting
-  - Description required for each withdrawal
+  - Event emission for transparency
 
 ## Account Structure
 
@@ -98,20 +97,18 @@ pub fn distribute_to_mustahik(
 - Can only be called by Amil
 - Mustahik must be registered
 
-### 5. Withdraw for Manual Distribution
+### 5. Withdraw Zakat Manual
 ```rust
-pub fn withdraw_for_manual_distribution(
-    ctx: Context<WithdrawForManualDistribution>,
+pub fn withdraw_zakat_manual(
+    ctx: Context<WithdrawZakatManual>,
     amount: u64,
-    description: String,
+    unique_id: String,
 ) -> Result<()>
 ```
 - Withdraws funds for manual distribution
-- Security limits:
-  - Min: 100 USDC
-  - Max: 100,000 USDC
-  - 24-hour cooldown
-- Requires description (max 200 chars)
+- Only amil can receive withdrawn funds
+- Requires unique ID for tracking
+- Emits withdrawal event
 
 ## Events
 
@@ -142,11 +139,11 @@ pub struct ZakatDistributed {
 }
 ```
 
-### 4. ManualDistributionWithdrawal
+### 4. ZakatWithdrawn
 ```rust
-pub struct ManualDistributionWithdrawal {
+pub struct ZakatWithdrawn {
     pub amount: u64,
-    pub description: String,
+    pub unique_id: String,
     pub timestamp: i64,
     pub withdrawal_count: u32,
 }
@@ -161,10 +158,8 @@ pub struct ManualDistributionWithdrawal {
 5. `InvalidTokenMint`: Token mint mismatch
 6. `InvalidTokenAccount`: Invalid token account
 7. `InsufficientFunds`: Insufficient funds for withdrawal
-8. `DescriptionTooLong`: Description exceeds 200 characters
-9. `WithdrawalAmountTooSmall`: Withdrawal below 100 USDC
-10. `WithdrawalAmountTooLarge`: Withdrawal above 100,000 USDC
-11. `WithdrawalCooldown`: Withdrawal within 24-hour cooldown
+8. `InvalidRecipient`: Recipient is not the amil
+9. `UniqueIdTooLong`: Unique ID exceeds 200 characters
 
 ## Security Features
 
@@ -172,16 +167,16 @@ pub struct ManualDistributionWithdrawal {
    - Program deployer only initialization
    - Amil-only operations for sensitive functions
    - PDA-based state account
+   - Amil-only recipient for withdrawals
 
 2. **Amount Limits**
    - Maximum Amil fee: 12.5%
-   - Withdrawal limits: 100-100,000 USDC
-   - 24-hour withdrawal cooldown
+   - Withdrawal limits based on available funds
 
 3. **Validation**
    - Token account ownership checks
    - Token mint verification
-   - Description length limits
+   - Unique ID length limits
    - Mustahik registration limits
 
 4. **Transparency**
@@ -221,16 +216,17 @@ await program.methods
 ### Manual Withdrawal
 ```typescript
 await program.methods
-    .withdrawForManualDistribution(
+    .withdrawZakatManual(
         new BN(100000000), // 100 USDC
-        "Emergency distribution"
+        "WITHDRAWAL-001"
     )
     .accounts({
         state: stateAccount,
         amil: amilWallet.publicKey,
         programTokenAccount: programTokenAccount,
-        amilOperationalAccount: amilOperationalAccount,
+        recipientTokenAccount: amilTokenAccount,
         tokenProgram: TOKEN_PROGRAM_ID,
+        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
     })
     .rpc();
 ```

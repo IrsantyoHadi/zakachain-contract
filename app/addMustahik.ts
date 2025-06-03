@@ -41,7 +41,7 @@ async function main() {
         // Add mustahik
         console.log("\nAdding mustahik...");
         const tx = await program.methods
-            .addMustahik(mustahikWallet.publicKey)
+            .addMustahik("MUSTAHIK-001", "Mustahik 1")
             .accounts({
                 state: statePda,
                 amil: wallet.publicKey,

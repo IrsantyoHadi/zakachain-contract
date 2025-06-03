@@ -2684,35 +2684,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "zakachain-core"
-version = "0.1.0"
-dependencies = [
- "anchor-lang",
- "anchor-spl",
- "solana-program",
-]
-
-[[package]]
-name = "zakachain-distribution"
-version = "0.1.0"
-dependencies = [
- "anchor-lang",
- "anchor-spl",
- "solana-program",
- "zakachain-core",
-]
-
-[[package]]
-name = "zakachain-token"
-version = "0.1.0"
-dependencies = [
- "anchor-lang",
- "anchor-spl",
- "solana-program",
- "zakachain-core",
-]
-
-[[package]]
 name = "zerocopy"
 version = "0.8.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
