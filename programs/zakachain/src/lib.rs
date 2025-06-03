@@ -6,7 +6,6 @@ use borsh::{BorshSerialize, BorshDeserialize};
 
 declare_id!("3EJSTPJYM3BaNBvL7haWnhXoNh5GvmsQfwL1QQ2am3GJ");
 
-pub const MAX_MUSTAHIKS: usize = 50;
 pub const MAX_DESCRIPTION_LEN: usize = 100;
 pub const PROGRAM_DEPLOYER: &str = "F2sKSFqHi4NXsez7dfafW3rCA9YTCK5aNMrCZsNdoq9j";
 
@@ -494,8 +493,6 @@ pub enum ZakaChainError {
     Unauthorized,
     #[msg("Invalid fee percentage")]
     InvalidFeePercentage,
-    #[msg("Maximum number of mustahiks reached")]
-    MaxMustahiksReached,
     #[msg("Invalid mustahik address")]
     InvalidMustahik,
     #[msg("Insufficient funds")]
